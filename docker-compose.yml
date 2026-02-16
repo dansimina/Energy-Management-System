@@ -1,0 +1,294 @@
+services:
+  nginx:
+    build:
+      context: '.\Frontend\'
+      dockerfile: Dockerfile
+    image: myapp-nginx:latest
+    depends_on:
+      - spring-auth-service
+      - spring-user-service
+      - spring-device-service
+    networks:
+      - proxy-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      # Port for external simulator to connect from localhost
+      - "15672:15672"    # Web UI to see queues/exchanges
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - ./rabbitmq-definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - proxy-network
+
+  spring-auth-service:
+    build:
+      context: '.\Authorization Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-auth-service:latest
+    environment:
+      PORT: 8080
+      DB_IP: postgres-db-auth
+      DB_PORT: 5432
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_DBNAME: CredentialsDatabase
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_USER_QUEUE: internal.auth.user.queue
+      RABBITMQ_DEVICE_QUEUE: internal.auth.device.queue
+    depends_on:
+      - postgres-db-auth
+      - rabbitmq
+    networks:
+      - proxy-network
+
+  postgres-db-auth:
+    image: postgres:15
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: CredentialsDatabase
+      GDATA: /var/lib/postgresql/data/data
+    volumes:
+      - postgres-auth-data:/var/lib/postgresql/data
+    networks:
+      - proxy-network
+
+  spring-user-service:
+    build:
+      context: '.\User Management Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-user-service:latest
+    environment:
+      PORT: 8080
+      DB_IP: postgres-db-user
+      DB_PORT: 5432
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_DBNAME: UsersDatabase
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_USER_QUEUE: internal.auth.user.queue
+    depends_on:
+      - postgres-db-user
+      - rabbitmq
+    networks:
+      - proxy-network
+
+  postgres-db-user:
+    image: postgres:15
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: UsersDatabase
+      GDATA: /var/lib/postgresql/data/data
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    networks:
+      - proxy-network
+
+  spring-device-service:
+    build:
+      context: '.\Device Management Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-device-service:latest
+    environment:
+      PORT: 8080
+      DB_IP: postgres-db-device
+      DB_PORT: 5432
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_DBNAME: DevicesDatabase
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_DEVICE_QUEUE: internal.auth.device.queue
+      RABBITMQ_MONITORING_QUEUE: internal.device.monitoring.queue
+      RABBITMQ_ALERT_QUEUE: internal.monitoring.device.alert.queue
+      RABBITMQ_USER_NOTIFICATION_QUEUE: internal.device.websocket.user.notification.queue
+    depends_on:
+      - postgres-db-device
+      - rabbitmq
+    networks:
+      - proxy-network
+
+  postgres-db-device:
+    image: postgres:15
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: DevicesDatabase
+      GDATA: /var/lib/postgresql/data/data
+    volumes:
+      - postgres-device-data:/var/lib/postgresql/data
+    networks:
+      - proxy-network
+
+  spring-monitoring-service:
+    build:
+      context: '.\Monitoring Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-monitoring-service:latest
+    deploy:
+      replicas: 4
+      restart_policy:
+        condition: on-failure
+    environment:
+      PORT: 8080
+      DB_IP: postgres-db-monitoring
+      DB_PORT: 5432
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_DBNAME: MonitoringDatabase
+      SIMULATOR_DELAY_MS: 100
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_MONITORING_QUEUE: internal.device.monitoring.queue
+      RABBITMQ_DATA_COLLECTION_QUEUE: "internal.loadbalancer.monitoring.queue.{{.Task.Slot}}"
+      RABBITMQ_ALERT_QUEUE: internal.monitoring.device.alert.queue
+      REPLICA_ID: "{{.Task.Slot}}"
+    depends_on:
+      - postgres-db-monitoring
+      - rabbitmq
+    networks:
+      - proxy-network
+
+  postgres-db-monitoring:
+    image: postgres:15
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: MonitoringDatabase
+    volumes:
+      - postgres-monitoring-data:/var/lib/postgresql/data
+    networks:
+      - proxy-network
+
+  spring-websocket-service:
+    build:
+      context: '.\Websocket Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-websocket-service:latest
+    environment:
+      PORT: 8080
+      AUTH_SERVICE_HOST: "http://spring-auth-service:8080/auth-service"
+      SUPPORT_SERVICE_HOST: "http://spring-support-service:8080/support-service"
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_USER_NOTIFICATION_QUEUE: internal.device.websocket.user.notification.queue
+    depends_on:
+      - spring-auth-service
+      - spring-support-service
+    networks:
+      - proxy-network
+
+  spring-support-service:
+    build:
+      context: '.\Customer Support Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-support-service:latest
+    environment:
+      PORT: 8080
+    networks:
+      - proxy-network
+
+  spring-load-balancing-service:
+    build:
+      context: '.\Load Balancing Microservice\'
+      dockerfile: Dockerfile
+    image: myapp-load-balancing-service:latest
+    environment:
+      PORT: 8080
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: internal-user
+      RABBITMQ_PASSWORD: internal-pass
+      RABBITMQ_DATA_COLLECTION_QUEUE: external.data.collection.queue
+      RABBITMQ_MONITORING_QUEUE_1: internal.loadbalancer.monitoring.queue.1
+      RABBITMQ_MONITORING_QUEUE_2: internal.loadbalancer.monitoring.queue.2
+      RABBITMQ_MONITORING_QUEUE_3: internal.loadbalancer.monitoring.queue.3
+      RABBITMQ_MONITORING_QUEUE_4: internal.loadbalancer.monitoring.queue.4
+    depends_on:
+      - rabbitmq
+    networks:
+      - proxy-network
+
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: always
+    ports:
+      - "80:80" # The HTTP port
+      # - "443:443" # The HTTPS port
+      - "8080:8080" # Dashboard port
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro" # Traefik can listen to the Docker events
+      - "./traefik.yml:/etc/traefik/traefik.yml:ro" # Static configuration file
+      - "./dynamic:/etc/traefik/dynamic:ro" # Dynamic configuration files
+      - "./logs:/var/log/traefik" # Log files
+    #    develop: # Enable live reload of dynamic configuration files on Windows, if using Unix based system needs to be commented out
+    #      watch:
+    #        - path: ./dynamic                   # watch the whole folder
+    #          action: sync+restart
+    #          target: /etc/traefik/dynamic
+    networks:
+      - proxy-network
+
+# Define a shared network for all services
+networks:
+  proxy-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres-auth-data:
+  postgres-user-data:
+  postgres-device-data:
+  postgres-monitoring-data:

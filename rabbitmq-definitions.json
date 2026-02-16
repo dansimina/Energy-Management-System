@@ -1,0 +1,121 @@
+{
+  "rabbit_version": "3.13.7",
+  "rabbitmq_version": "3.13.7",
+  "users": [
+    {
+      "name": "guest",
+      "password": "guest",
+      "tags": "administrator"
+    },
+    {
+      "name": "internal-user",
+      "password": "internal-pass",
+      "tags": ""
+    },
+    {
+      "name": "simulator-user",
+      "password": "simulator-pass",
+      "tags": ""
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "guest",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "internal-user",
+      "vhost": "/",
+      "configure": "^(internal\\.|external\\.).*",
+      "write": "^(internal\\.|amq\\.default).*",
+      "read": "^(internal\\.|external\\.|amq\\.default).*"
+    },
+    {
+      "user": "simulator-user",
+      "vhost": "/",
+      "configure": "^external\\..*",
+      "write": "^(external\\.|amq\\.default).*",
+      "read": ""
+    }
+  ],
+  "queues": [
+    {
+      "name": "internal.auth.user.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.auth.device.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.device.monitoring.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.monitoring.device.alert.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.device.websocket.user.notification.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.loadbalancer.monitoring.queue.1",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.loadbalancer.monitoring.queue.2",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.loadbalancer.monitoring.queue.3",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "internal.loadbalancer.monitoring.queue.4",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "external.data.collection.queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ]
+}

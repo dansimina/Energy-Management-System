@@ -1,0 +1,157 @@
+http:
+  routers:
+    nginx-frontend:
+      rule: "Host(`localhost`)"
+      entryPoints:
+        - web
+      service: nginx
+
+    auth-swagger:
+      rule: "Host(`localhost`) && (Path(`/api/auth-service/swagger-ui.html`) || PathPrefix(`/api/auth-service/swagger-ui`) || PathPrefix(`/api/auth-service/api-docs`))"
+      middlewares:
+        - cors
+      service: auth-service
+
+    auth:
+      rule: "Host(`localhost`) && PathPrefix(`/api/auth-service`) && !PathPrefix(`/api/auth-service/internal`)"
+      middlewares:
+        - cors
+        - strip-api-prefix
+      service: auth-service
+
+    user-swagger:
+      rule: "Host(`localhost`) && (Path(`/api/user-service/swagger-ui. html`) || PathPrefix(`/api/user-service/swagger-ui`) || PathPrefix(`/api/user-service/api-docs`))"
+      middlewares:
+        - cors
+      service: user-service
+
+    user:
+      rule: "Host(`localhost`) && PathPrefix(`/api/user-service`) && !PathPrefix(`/api/user-service/internal`)"
+      middlewares:
+        - cors
+        - strip-api-prefix
+        - auth-check
+      service: user-service
+
+    device-swagger:
+      rule: "Host(`localhost`) && (Path(`/api/device-service/swagger-ui.html`) || PathPrefix(`/api/device-service/swagger-ui`) || PathPrefix(`/api/device-service/api-docs`))"
+      middlewares:
+        - cors
+      service: device-service
+
+    device:
+      rule: "Host(`localhost`) && PathPrefix(`/api/device-service`) && !PathPrefix(`/api/device-service/internal`)"
+      middlewares:
+        - cors
+        - strip-api-prefix
+        - auth-check
+      service: device-service
+
+    monitoring-swagger:
+      rule: "Host(`localhost`) && (Path(`/api/monitoring-service/swagger-ui.html`) || PathPrefix(`/api/monitoring-service/swagger-ui`) || PathPrefix(`/api/monitoring-service/api-docs`))"
+      middlewares:
+        - cors
+      service: monitoring-service
+
+    monitoring:
+      rule: "Host(`localhost`) && PathPrefix(`/api/monitoring-service`) && !PathPrefix(`/api/monitoring-service/internal`)"
+      middlewares:
+        - cors
+        - strip-api-prefix
+        - auth-check
+      service: monitoring-service
+
+    # Updated WebSocket router
+    websocket:
+      rule: "Host(`localhost`) && PathPrefix(`/api/websocket-service`)"
+      entryPoints:
+        - web
+      middlewares:
+        - cors-websocket
+        - strip-api-prefix
+      service: websocket-service
+
+  middlewares:
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - "/api"
+
+    auth-check:
+      forwardAuth:
+        address: "http://spring-auth-service:8080/auth-service/validate"
+        authRequestHeaders:
+          - "Authorization"
+        authResponseHeaders:
+          - "X-User-Id"
+          - "X-User-Role"
+          - "X-Username"
+        trustForwardHeader: true
+
+    cors:
+      headers:
+        accessControlAllowOriginList:
+          - "*"
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowMethods:
+          - "*"
+        accessControlAllowCredentials: true
+
+    # Special CORS middleware for WebSocket
+    cors-websocket:
+      headers:
+        accessControlAllowOriginList:
+          - "http://localhost"
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowCredentials: true
+        customRequestHeaders:
+          Connection: "keep-alive, Upgrade"
+          Upgrade: "websocket"
+
+  services:
+    nginx:
+      loadBalancer:
+        servers:
+          - url: "http://nginx:80"
+
+    auth-service:
+      loadBalancer:
+        servers:
+          - url: "http://spring-auth-service:8080"
+
+    user-service:
+      loadBalancer:
+        servers:
+          - url: "http://spring-user-service:8080"
+
+    device-service:
+      loadBalancer:
+        servers:
+          - url: "http://spring-device-service:8080"
+
+    monitoring-service:
+      loadBalancer:
+        servers:
+          - url: "http://spring-monitoring-service:8080"
+
+    # Updated WebSocket service with transport settings
+    websocket-service:
+      loadBalancer:
+        servers:
+          - url: "http://spring-websocket-service:8080"
+        serversTransport: websocket-transport
+
+  serversTransports:
+    websocket-transport:
+      forwardingTimeouts:
+        dialTimeout: "30s"
+        responseHeaderTimeout: "0s"
+        idleConnTimeout: "90s"
