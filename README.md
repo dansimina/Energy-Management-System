@@ -54,7 +54,7 @@ This project was developed across three university assignments for the **Distrib
 ---
 
 ### Device Data Simulator
-> A standalone desktop application that simulates smart meter readings every 10 minutes and sends them to RabbitMQ. Device ID and simulation parameters can be configured via a config file.
+> A standalone desktop application that simulates smart meter readings every 10 minutes and sends them to RabbitMQ.
 
 ![Simulation App](screenshots/simulation_app.png)
 
